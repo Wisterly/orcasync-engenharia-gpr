@@ -61,10 +61,10 @@ export default function Home() {
 
     const demo = createDemoBudgets();
 
-    // If no contracts are saved yet, initialize with demo base contract
+    // If no contracts are saved yet, initialize with rich preset base contracts
     if (loadedContracts.length === 0) {
-      saveContractToStorage(demo.targetContract);
-      setAvailableContracts([demo.targetContract]);
+      demo.presetContracts.forEach(c => saveContractToStorage(c));
+      setAvailableContracts(demo.presetContracts);
     } else {
       setAvailableContracts(loadedContracts);
     }
@@ -186,6 +186,15 @@ export default function Home() {
     }
   };
 
+  // Update a contract after spreadsheet upload/attachment directly on its card
+  const handleUpdateContractSpreadsheet = (contractId: string, updatedContract: ContractSheet) => {
+    saveContractToStorage(updatedContract);
+    setAvailableContracts(getStoredContracts());
+    if (targetContract?.id === contractId) {
+      setTargetContract(updatedContract);
+    }
+  };
+
   // Delete Contract
   const handleDeleteContract = (contractId: string) => {
     if (confirm('Tem certeza que deseja excluir esta planilha mestre do banco de contratos?')) {
@@ -284,6 +293,7 @@ export default function Home() {
               setTargetContract(contract);
               setActiveTab('nova');
             }}
+            onUpdateContractSpreadsheet={handleUpdateContractSpreadsheet}
           />
         )}
 

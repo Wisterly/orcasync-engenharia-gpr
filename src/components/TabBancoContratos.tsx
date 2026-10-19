@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Database,
   Building2,
@@ -11,18 +11,24 @@ import {
   ChevronDown,
   ChevronRight,
   FolderTree,
-  Percent,
-  Layers,
   Search,
-  CheckCircle2
+  CheckCircle2,
+  UploadCloud,
+  FileUp,
+  RefreshCw,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { ContractSheet } from '@/types/budget';
+import { ExcelThumbnailCover } from './ExcelThumbnailCover';
+import { parseExcelBudget } from '@/lib/excelEngine';
 
 interface TabBancoContratosProps {
   contracts: ContractSheet[];
   onOpenNewContractModal: () => void;
   onDeleteContract: (contractId: string) => void;
   onSelectForMatching: (contract: ContractSheet) => void;
+  onUpdateContractSpreadsheet: (contractId: string, updatedContract: ContractSheet) => void;
 }
 
 export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
@@ -30,16 +36,99 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
   onOpenNewContractModal,
   onDeleteContract,
   onSelectForMatching,
+  onUpdateContractSpreadsheet,
 }) => {
   const [selectedContractForPreview, setSelectedContractForPreview] = useState<ContractSheet | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  const [dragOverContractId, setDragOverContractId] = useState<string | null>(null);
+  const [activeUploadContractId, setActiveUploadContractId] = useState<string | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+
+  // Hidden file input for card attachments
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleStage = (stageCode: string) => {
     setExpandedStages(prev => ({
       ...prev,
       [stageCode]: !prev[stageCode],
     }));
+  };
+
+  // Open file selector targeting a specific contract
+  const triggerFileInput = (contractId: string) => {
+    setActiveUploadContractId(contractId);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  // Process uploaded or dropped Excel file for a specific contract card
+  const handleFileForContract = async (contractId: string, file: File) => {
+    try {
+      setIsProcessingFile(true);
+      const buffer = await file.arrayBuffer();
+      const parsed = await parseExcelBudget(buffer, file.name, true);
+
+      // Find the contract being updated
+      const existing = contracts.find(c => c.id === contractId);
+      if (!existing) return;
+
+      const updatedContract: ContractSheet = {
+        ...existing,
+        items: parsed.items,
+        stages: parsed.stages,
+        totalValueWithBDI: parsed.totalValueWithBDI,
+        totalValueWithoutBDI: parsed.totalValueWithoutBDI,
+        itemsWithQuantityCount: parsed.itemsWithQuantityCount,
+        fileName: file.name,
+        rawWorkbookBuffer: buffer,
+      };
+
+      onUpdateContractSpreadsheet(contractId, updatedContract);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao processar arquivo';
+      alert(`Erro ao ler a planilha Excel: ${message}`);
+    } finally {
+      setIsProcessingFile(false);
+      setActiveUploadContractId(null);
+      setDragOverContractId(null);
+    }
+  };
+
+  // Handle standard input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && activeUploadContractId) {
+      handleFileForContract(activeUploadContractId, file);
+    }
+  };
+
+  // Drag & Drop handlers
+  const handleDragOver = (e: React.DragEvent, contractId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverContractId(contractId);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, contractId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragOverContractId === contractId) {
+      setDragOverContractId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, contractId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverContractId(null);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileForContract(contractId, file);
+    }
   };
 
   const filteredContracts = contracts.filter(c =>
@@ -53,16 +142,26 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn pb-16">
+      
+      {/* Hidden input for attachment */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileInputChange}
+        accept=".xlsx,.xls"
+        className="hidden"
+      />
+
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[#121316] border border-[#23262E]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[#121316] border border-[#23262E] shadow-xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Database className="w-5 h-5 text-[#D4AF37]" />
             <h2 className="text-xl font-bold text-white">Banco de Contratos Base (Planilhas Mestras)</h2>
           </div>
           <p className="text-xs text-gray-400">
-            Gerencie as planilhas base oficiais de cada construtora e contrato com proteção de composições e preços.
+            Cada card representa um contrato oficial. Anexe a planilha base (.xlsx) para exibir a foto de capa em miniatura e utilizá-la na compatibilização.
           </p>
         </div>
 
@@ -74,95 +173,170 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
               placeholder="Buscar contratos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-3 py-1.5 text-xs bg-[#18191E] border border-[#2B2F3B] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]"
+              className="pl-9 pr-3 py-2 text-xs bg-[#18191E] border border-[#2B2F3B] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] w-56"
             />
           </div>
 
           <button
             onClick={onOpenNewContractModal}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black shadow-md shadow-[#FF6B00]/20 hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black shadow-md shadow-[#FF6B00]/20 hover:opacity-90 transition-opacity shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Novo Contrato Base</span>
+            <span>+ Novo Card de Contrato</span>
           </button>
         </div>
       </div>
 
-      {/* Grid of Contracts */}
+      {/* Grid of Contract Cards with Excel Cover Thumbnails and Attach Box */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredContracts.map((contract) => {
-          const subitemsCount = contract.items.filter(i => !i.isStageHeader).length;
+          const hasSpreadsheet = contract.items && contract.items.length > 0;
+          const subitemsCount = hasSpreadsheet ? contract.items.filter(i => !i.isStageHeader).length : 0;
+          const isDragOver = dragOverContractId === contract.id;
+          const isCurrentLoading = isProcessingFile && activeUploadContractId === contract.id;
 
           return (
             <div
               key={contract.id}
-              className="flex flex-col rounded-2xl bg-[#121316] border border-[#23262E] hover:border-amber-500/30 transition-all p-5 shadow-xl relative group"
+              onDragOver={(e) => handleDragOver(e, contract.id)}
+              onDragLeave={(e) => handleDragLeave(e, contract.id)}
+              onDrop={(e) => handleDrop(e, contract.id)}
+              className={`flex flex-col rounded-2xl bg-[#121316] border transition-all p-5 shadow-2xl relative group ${
+                isDragOver
+                  ? 'border-[#FF6B00] ring-2 ring-[#FF6B00]/40 bg-[#16171E]'
+                  : 'border-[#23262E] hover:border-amber-500/40'
+              }`}
             >
-              {/* Top Meta */}
-              <div className="flex items-start justify-between pb-3 border-b border-[#23262E]">
+              {/* Card Top Information */}
+              <div className="flex items-start justify-between pb-3 border-b border-[#23262E] mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center">
                     <Building2 className="w-4 h-4 text-[#D4AF37]" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white line-clamp-1">{contract.company}</h3>
-                    <span className="text-[11px] font-mono text-gray-400">{contract.contractNumber}</span>
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-gray-400">
+                      <span>{contract.contractNumber}</span>
+                      <span>•</span>
+                      <span className="text-amber-400 font-semibold">BDI {contract.bdiPercentage.toFixed(2)}%</span>
+                    </div>
                   </div>
                 </div>
 
                 <button
                   onClick={() => onDeleteContract(contract.id)}
-                  title="Excluir contrato"
+                  title="Excluir card de contrato"
                   className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Title & Stats */}
-              <div className="mt-4 space-y-3 flex-1">
-                <h4 className="text-xs font-semibold text-amber-300 line-clamp-2">
-                  {contract.title}
-                </h4>
+              {/* Title */}
+              <h4 className="text-xs font-semibold text-gray-200 line-clamp-1 mb-3">
+                {contract.title}
+              </h4>
 
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                  <div className="p-2.5 rounded-xl bg-[#18191E] border border-[#23262E]">
-                    <span className="text-[10px] text-gray-500 block">COMPOSIÇÕES</span>
-                    <span className="text-white font-bold">{subitemsCount} itens</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-[#18191E] border border-[#23262E]">
-                    <span className="text-[10px] text-gray-500 block">TAXA BDI</span>
-                    <span className="text-amber-400 font-bold">{contract.bdiPercentage.toFixed(2)}%</span>
-                  </div>
+              {/* FOTO DE CAPA: MINIATURA REALISTA DA PLANILHA EXCEL */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 mb-1.5 px-0.5">
+                  <span className="flex items-center gap-1 font-semibold text-gray-300">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#107C41]" />
+                    <span>Capa da Planilha Base</span>
+                  </span>
+                  {hasSpreadsheet && (
+                    <span className="text-[10px] text-emerald-400">100% Compatibilizável</span>
+                  )}
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[#18191E] border border-[#23262E] text-xs">
-                  <span className="text-[10px] text-gray-500 font-mono block">ÁRVORE DE ETAPAS</span>
-                  <div className="flex items-center gap-1.5 mt-1 text-gray-300 font-medium">
-                    <FolderTree className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span>{contract.stages.length} Etapas principais identificadas</span>
+                <ExcelThumbnailCover
+                  contract={contract}
+                  isDragOver={isDragOver}
+                  onAttachClick={() => triggerFileInput(contract.id)}
+                  onPreviewClick={() => setSelectedContractForPreview(contract)}
+                />
+              </div>
+
+              {/* CAIXA DE ANEXO DE ARQUIVO EXCEL / BOTÃO DE BUSCAR NO COMPUTADOR OU CELULAR */}
+              <div className="p-3 rounded-xl bg-[#18191E] border border-[#2B2F3B] space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-300 flex items-center gap-1.5">
+                    <UploadCloud className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>{hasSpreadsheet ? 'Substituir / Atualizar Planilha' : 'Anexar Planilha Base'}</span>
+                  </span>
+                  {isCurrentLoading && (
+                    <span className="text-[10px] font-mono text-amber-400 flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      Lendo...
+                    </span>
+                  )}
+                </div>
+
+                {/* Dropzone Area & Button */}
+                <div
+                  onClick={() => triggerFileInput(contract.id)}
+                  className="p-2.5 rounded-lg border border-dashed border-[#3A3F4E] hover:border-amber-400 bg-[#121316] hover:bg-[#15171F] cursor-pointer transition-all flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <FileUp className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-[11px] truncate">
+                      {hasSpreadsheet ? 'Arraste novo .xlsx ou clique aqui' : 'Arraste .xlsx ou abra o diretório'}
+                    </span>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerFileInput(contract.id);
+                    }}
+                    className="px-2.5 py-1 rounded-md bg-[#242833] hover:bg-amber-500/20 text-[#D4AF37] text-[10px] font-bold font-mono border border-amber-500/30 hover:border-amber-400 transition-all shrink-0"
+                  >
+                    Anexar Arquivo
+                  </button>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="mt-5 pt-3 border-t border-[#23262E] flex items-center justify-between gap-2">
-                <button
-                  onClick={() => setSelectedContractForPreview(contract)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#18191E] hover:bg-[#23262E] text-xs font-medium text-gray-200 transition-colors border border-[#2B2F3B]"
-                >
-                  <Eye className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>Ver Árvore / Itens</span>
-                </button>
+              {/* Contract Stats Summary */}
+              {hasSpreadsheet && (
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono mt-3">
+                  <div className="p-2 rounded-lg bg-[#18191E] border border-[#23262E] text-center">
+                    <span className="text-[9px] text-gray-500 block uppercase">Composições</span>
+                    <span className="text-white font-bold">{subitemsCount} itens</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-[#18191E] border border-[#23262E] text-center">
+                    <span className="text-[9px] text-gray-500 block uppercase">Etapas</span>
+                    <span className="text-amber-400 font-bold">{contract.stages.length} grupos</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Card Action Buttons */}
+              <div className="mt-4 pt-3 border-t border-[#23262E] flex items-center gap-2">
+                {hasSpreadsheet && (
+                  <button
+                    onClick={() => setSelectedContractForPreview(contract)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#18191E] hover:bg-[#23262E] text-xs font-medium text-gray-200 transition-colors border border-[#2B2F3B]"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Ver Itens</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => onSelectForMatching(contract)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black text-xs font-semibold shadow-md shadow-[#FF6B00]/20 hover:opacity-90 transition-opacity"
+                  disabled={!hasSpreadsheet}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                    hasSpreadsheet
+                      ? 'bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black shadow-md shadow-[#FF6B00]/20 hover:opacity-90'
+                      : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+                  }`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Usar no De-Para</span>
                 </button>
               </div>
+
             </div>
           );
         })}
@@ -177,11 +351,11 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
             <div className="p-5 border-b border-[#23262E] flex items-center justify-between bg-[#18191E]">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <FolderTree className="w-5 h-5 text-[#D4AF37]" />
-                  <span>Estrutura Hierárquica do Contrato Base</span>
+                  <FileSpreadsheet className="w-5 h-5 text-[#107C41]" />
+                  <span>Planilha Base Oficial do Contrato</span>
                 </h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {selectedContractForPreview.title} — {selectedContractForPreview.company}
+                  {selectedContractForPreview.title} — {selectedContractForPreview.company} ({selectedContractForPreview.fileName || 'Base Oficial'})
                 </p>
               </div>
 
@@ -195,10 +369,13 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
 
             {/* Tree Content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <div className="text-xs font-mono text-gray-400 bg-[#0E0F12] p-3 rounded-xl border border-[#23262E] flex items-center justify-between">
-                <span>Total de Itens: {selectedContractForPreview.items.length}</span>
-                <span>BDI: {selectedContractForPreview.bdiPercentage.toFixed(2)}%</span>
-                <span className="text-amber-400 font-semibold">Composições Fixas e Protegidas</span>
+              <div className="text-xs font-mono text-gray-300 bg-[#0E0F12] p-3 rounded-xl border border-[#23262E] flex items-center justify-between">
+                <span>Composições Disponíveis: {selectedContractForPreview.items.length}</span>
+                <span>BDI Oficial: {selectedContractForPreview.bdiPercentage.toFixed(2)}%</span>
+                <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Composições e Preços Bloqueados contra Alteração
+                </span>
               </div>
 
               <div className="space-y-3">
@@ -274,18 +451,38 @@ export const TabBancoContratos: React.FC<TabBancoContratosProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-[#23262E] bg-[#18191E] flex justify-end">
+            <div className="p-4 border-t border-[#23262E] bg-[#18191E] flex items-center justify-between">
               <button
-                onClick={() => setSelectedContractForPreview(null)}
-                className="px-4 py-2 rounded-xl bg-[#23262E] text-xs font-medium text-white hover:bg-[#2B2F3B] transition-colors"
+                onClick={() => triggerFileInput(selectedContractForPreview.id)}
+                className="px-3.5 py-2 rounded-xl bg-[#23262E] hover:bg-[#2B2F3B] text-xs font-medium text-amber-300 border border-amber-500/20 transition-colors flex items-center gap-2"
               >
-                Fechar
+                <FileUp className="w-3.5 h-3.5" />
+                <span>Substituir Planilha deste Contrato</span>
               </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedContractForPreview(null)}
+                  className="px-4 py-2 rounded-xl bg-[#23262E] text-xs font-medium text-white hover:bg-[#2B2F3B] transition-colors"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={() => {
+                    onSelectForMatching(selectedContractForPreview);
+                    setSelectedContractForPreview(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black text-xs font-semibold shadow-md"
+                >
+                  Usar na Compatibilização
+                </button>
+              </div>
             </div>
 
           </div>
         </div>
       )}
+
     </div>
   );
 };

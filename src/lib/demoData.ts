@@ -3,6 +3,7 @@ import { BudgetItem, ContractSheet, StageGroup, DeParaRule } from '@/types/budge
 export function createDemoBudgets(): {
   sourceContract: ContractSheet;
   targetContract: ContractSheet;
+  presetContracts: ContractSheet[];
   defaultDeParaRules: DeParaRule[];
 } {
   // 1. Orçamento Antigo / Contrato Origem (Planilha A)
@@ -289,11 +290,8 @@ export function createDemoBudgets(): {
     createdAt: new Date().toISOString(),
   };
 
-  // 2. Novo Contrato Base Oficial (Planilha Base B)
-  // REGRA INVIOLÁVEL: Esta planilha possui todas as composições oficiais da nova empresa,
-  // com nomenclaturas técnicas oficiais (SINAPI/SEINFRA) e preços unitários oficiais fixos.
+  // 2. Contrato 1: Contrato Master GPR 2026 - Construtora Prime
   const targetItems: BudgetItem[] = [
-    // Etapa 1.0 - SERVIÇOS PRELIMINARES E DEMOLIÇÕES
     {
       id: 'tgt-1-0',
       rowNumber: 5,
@@ -378,7 +376,7 @@ export function createDemoBudgets(): {
       cellRefs: { qtyCell: 'F9', unitPriceCell: 'G9', unitPriceBdiCell: 'H9', totalCell: 'I9' },
     },
 
-    // Etapa 2.0 - PAREDES, PAINÉIS E VEDAÇÕES
+    // Etapa 2.0
     {
       id: 'tgt-2-0',
       rowNumber: 10,
@@ -446,7 +444,7 @@ export function createDemoBudgets(): {
       cellRefs: { qtyCell: 'F13', unitPriceCell: 'G13', unitPriceBdiCell: 'H13', totalCell: 'I13' },
     },
 
-    // Etapa 3.0 - REVESTIMENTOS DE PAREDES E PISOS
+    // Etapa 3.0
     {
       id: 'tgt-3-0',
       rowNumber: 14,
@@ -531,7 +529,7 @@ export function createDemoBudgets(): {
       cellRefs: { qtyCell: 'F18', unitPriceCell: 'G18', unitPriceBdiCell: 'H18', totalCell: 'I18' },
     },
 
-    // Etapa 4.0 - PINTURA E TRATAMENTOS
+    // Etapa 4.0
     {
       id: 'tgt-4-0',
       rowNumber: 19,
@@ -622,6 +620,124 @@ export function createDemoBudgets(): {
     createdAt: new Date().toISOString(),
   };
 
+  // 3. Contrato 2: Obras Hospitalares & Laboratórios (Com planilha e capa)
+  const hospitalContract: ContractSheet = {
+    id: 'contract-preset-hospital',
+    title: 'Contrato Obras Hospitalares & Clínicas - Unidade Sul',
+    company: 'GPR Engenharia Hospitalar Ltda',
+    contractNumber: 'HOSP-2026/102',
+    bdiPercentage: 24.0,
+    items: [
+      {
+        id: 'hosp-1-0',
+        rowNumber: 5,
+        itemCode: '1.0',
+        stageLevel: 1,
+        isStageHeader: true,
+        description: 'ISOLAMENTO E REVESTIMENTOS ESPECIAIS',
+        unit: '',
+        quantity: 0,
+        unitPriceWithoutBDI: 0,
+        unitPriceWithBDI: 0,
+        totalPrice: 0,
+        bdiPercentage: 24.0,
+      },
+      {
+        id: 'hosp-1-1',
+        rowNumber: 6,
+        itemCode: '1.1',
+        stageLevel: 2,
+        isStageHeader: false,
+        source: 'SINAPI',
+        code: '93450',
+        description: 'Revestimento vinílico condutivo hospitalar em mantas com solda a quente',
+        unit: 'm²',
+        quantity: 0,
+        unitPriceWithoutBDI: 145.00,
+        unitPriceWithBDI: 179.80,
+        totalPrice: 0,
+        bdiPercentage: 24.0,
+      },
+      {
+        id: 'hosp-1-2',
+        rowNumber: 7,
+        itemCode: '1.2',
+        stageLevel: 2,
+        isStageHeader: false,
+        source: 'SINAPI',
+        code: '93455',
+        description: 'Pintura epóxi antimicrobiana lavável para salas cirúrgicas',
+        unit: 'm²',
+        quantity: 0,
+        unitPriceWithoutBDI: 68.00,
+        unitPriceWithBDI: 84.32,
+        totalPrice: 0,
+        bdiPercentage: 24.0,
+      },
+      {
+        id: 'hosp-1-3',
+        rowNumber: 8,
+        itemCode: '1.3',
+        stageLevel: 2,
+        isStageHeader: false,
+        source: 'SINAPI',
+        code: '93460',
+        description: 'Porta hospitalar hermética em aço inox para salas limpas',
+        unit: 'un',
+        quantity: 0,
+        unitPriceWithoutBDI: 2400.00,
+        unitPriceWithBDI: 2976.00,
+        totalPrice: 0,
+        bdiPercentage: 24.0,
+      },
+    ],
+    stages: [
+      { itemCode: '1.0', title: 'ISOLAMENTO E REVESTIMENTOS ESPECIAIS', rowNumber: 5, totalCell: 'I5', subitemRowNumbers: [6, 7, 8], subitemTotalCells: ['I6', 'I7', 'I8'], subtotal: 0 },
+    ],
+    totalValueWithBDI: 0,
+    totalValueWithoutBDI: 0,
+    itemsWithQuantityCount: 0,
+    fileName: 'Contrato_Hospitalar_GPR_2026.xlsx',
+    createdAt: new Date().toISOString(),
+  };
+
+  // 4. Contrato 3: Infraestrutura Urbana & Saneamento (Aguardando anexo de planilha)
+  const urbanContract: ContractSheet = {
+    id: 'contract-preset-urban',
+    title: 'Contrato Infraestrutura Urbana & Saneamento',
+    company: 'Consórcio Metropolitano GPR & Vias',
+    contractNumber: 'INFRA-2026/088',
+    bdiPercentage: 26.2,
+    items: [],
+    stages: [],
+    totalValueWithBDI: 0,
+    totalValueWithoutBDI: 0,
+    itemsWithQuantityCount: 0,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 5. Contrato 4: Reforma e Retrofit Predial (Aguardando anexo de planilha)
+  const retrofitContract: ContractSheet = {
+    id: 'contract-preset-retrofit',
+    title: 'Contrato Retrofit e Reforma Corporativa',
+    company: 'GPR Engenharia Predial & Retrofit',
+    contractNumber: 'RETRO-2026/033',
+    bdiPercentage: 25.0,
+    items: [],
+    stages: [],
+    totalValueWithBDI: 0,
+    totalValueWithoutBDI: 0,
+    itemsWithQuantityCount: 0,
+    createdAt: new Date().toISOString(),
+  };
+
+  const presetContracts: ContractSheet[] = [
+    targetContract,
+    hospitalContract,
+    urbanContract,
+    retrofitContract,
+  ];
+
   const defaultDeParaRules: DeParaRule[] = [
     {
       id: 'depara-1',
@@ -641,5 +757,5 @@ export function createDemoBudgets(): {
     },
   ];
 
-  return { sourceContract, targetContract, defaultDeParaRules };
+  return { sourceContract, targetContract, presetContracts, defaultDeParaRules };
 }

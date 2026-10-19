@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Building2, FileSpreadsheet, X } from 'lucide-react';
+import { UploadCloud, Building2, FileSpreadsheet, X, PlusCircle } from 'lucide-react';
 import { ContractSheet } from '@/types/budget';
 import { parseExcelBudget } from '@/lib/excelEngine';
 
@@ -48,22 +48,39 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadedContract) {
-      alert('Por favor, anexe a planilha orçamentária base em Excel (.xlsx).');
+    if (!title.trim() && !company.trim()) {
+      alert('Por favor, informe ao menos o título ou empresa do contrato.');
       return;
     }
 
     const bdi = parseFloat(bdiPercentage.replace(',', '.')) || 25.5;
 
-    const finalContract: ContractSheet = {
+    const finalContract: ContractSheet = uploadedContract ? {
       ...uploadedContract,
       title: title.trim() || uploadedContract.title,
       company: company.trim() || uploadedContract.company,
       contractNumber: contractNumber.trim() || uploadedContract.contractNumber,
       bdiPercentage: bdi,
+    } : {
+      id: `contract-${Date.now()}`,
+      title: title.trim() || `Contrato ${company.trim()}`,
+      company: company.trim() || 'Nova Empresa Contratada',
+      contractNumber: contractNumber.trim() || `CT-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+      bdiPercentage: bdi,
+      items: [],
+      stages: [],
+      totalValueWithBDI: 0,
+      totalValueWithoutBDI: 0,
+      itemsWithQuantityCount: 0,
+      createdAt: new Date().toISOString(),
     };
 
     onSaveContract(finalContract);
+    // Reset form
+    setTitle('');
+    setCompany('');
+    setContractNumber('');
+    setUploadedContract(null);
     onClose();
   };
 
@@ -76,7 +93,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#D4AF37]" />
             <h3 className="text-base font-bold text-white">
-              Cadastrar Novo Contrato Base (Planilha Mestra)
+              Criar Novo Card de Contrato Base
             </h3>
           </div>
 
@@ -91,11 +108,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
-          {/* File Upload Box */}
+          {/* File Upload Box (Optional at creation, can be attached on the card later) */}
           <div>
-            <label className="block text-xs font-medium text-gray-300 mb-1.5">
-              Planilha Base Oficial (.xlsx):
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-gray-300">
+                Planilha Base Oficial (.xlsx):
+              </label>
+              <span className="text-[10px] text-gray-500 font-mono">
+                Opcional agora (pode anexar direto no card)
+              </span>
+            </div>
 
             {uploadedContract ? (
               <div className="p-3.5 rounded-xl bg-[#18191E] border border-emerald-500/30 flex items-center justify-between">
@@ -120,14 +142,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             ) : (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="p-6 rounded-xl border-2 border-dashed border-[#2B2F3B] hover:border-[#D4AF37] bg-[#18191E]/40 hover:bg-[#18191E] cursor-pointer text-center space-y-2 transition-all"
+                className="p-5 rounded-xl border-2 border-dashed border-[#2B2F3B] hover:border-[#D4AF37] bg-[#18191E]/40 hover:bg-[#18191E] cursor-pointer text-center space-y-1.5 transition-all"
               >
-                <UploadCloud className="w-8 h-8 text-[#D4AF37] mx-auto" />
+                <UploadCloud className="w-7 h-7 text-[#D4AF37] mx-auto" />
                 <p className="text-xs font-medium text-gray-300">
                   {isProcessing ? 'Lendo e analisando colunas...' : 'Clique para selecionar a planilha (.xlsx)'}
                 </p>
                 <p className="text-[10px] text-gray-500">
-                  Reconhece automaticamente hierarquia, colunas e fórmulas
+                  Ou você pode criar o card agora e arrastar a planilha direto nele!
                 </p>
               </div>
             )}
@@ -148,7 +170,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="Ex: Contrato Executivo 2026 - Construtora Alfa"
+              placeholder="Ex: Contrato Obras Civis e Estruturais - Construtora Prime"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -209,10 +231,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!uploadedContract}
-              className="px-5 py-2 text-xs font-semibold bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black rounded-xl hover:opacity-95 shadow-md disabled:opacity-50"
+              className="px-5 py-2 text-xs font-semibold bg-gradient-to-r from-[#FF6B00] to-[#D4AF37] text-black rounded-xl hover:opacity-95 shadow-md flex items-center gap-1.5"
             >
-              Salvar Contrato Base
+              <PlusCircle className="w-4 h-4 text-black" />
+              <span>Criar Card de Contrato</span>
             </button>
           </div>
 
